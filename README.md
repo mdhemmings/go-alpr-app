@@ -5,7 +5,7 @@
 Run docker image:
 
 ```bash
-docker run -p 554:8554 -d -v $(pwd)/virtualRTSP/samples:/samples -d -e SOURCE_URL=file:///samples/video1.mp4 kerberos/virtual-rtsp:1.0.6 
+docker run -p 554:8554 -d -v $pwd/virtualRTSP/samples:/samples -d -e SOURCE_URL=file:///samples/video1.mp4 kerberos/virtual-rtsp:1.0.6 
 ```
 
 ## Compile openCV for go
@@ -45,3 +45,30 @@ cmake -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_INSTALL_SYSCONFDIR:PATH=/etc ..
 make
 sudo make install
 ```
+
+## Compile raspivid for ARM
+
+```bash
+git clone https://github.com/raspberrypi/userland.git
+cd userland
+apt-get install cmake g++
+./buildme --arch64
+touch ~/.bash_aliases
+echo -e 'PATH=$PATH:/opt/vc/bin\nexport PATH' >> ~/.bash_aliases
+echo -e 'LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/vc/lib\nexport LD_LIBRARY_PATH' >> ~/.bash_aliases
+source ~/.bashrc
+sudo ldconfig
+sudo reboot now
+```
+
+Setting up ARMPi
+
+* Copy across openalprArm64.tar.gz
+* Copy across go-anpr-app
+* Untar openalprArm64.tar.gz from /
+* mkdir /app
+* mv /tmp/go-anpr-app /app/go-anpr-app
+* apt-get update
+* apt install:
+    libopencv-dev
+    ffmpeg (only required for RTSP testing; not in production)

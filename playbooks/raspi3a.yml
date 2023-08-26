@@ -1,0 +1,110 @@
+---
+- name: Configure Ubuntu Server on Raspberry Pi
+  hosts: raspberry_pi
+  become: true
+  vars:
+    ansible_ssh_user: ubuntu
+    ansible_ssh_pass: ubuntu123!
+    ansible_connection: ssh
+    ansible_ssh_common_args: '-o StrictHostKeyChecking=no'
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Upgrade packages
+      apt:
+        upgrade: yes
+
+    - name: add openalpr repo
+      apt_repository:
+        repo: ppa:xapienz/curl34
+        state: present
+        filename: openalpr
+        update_cache: yes
+
+    - name: Install required packages
+      apt:
+        name:
+          - openssh-server
+          - python3
+          - ffmpeg
+          - libcurl4
+          - libcurl4-openssl-dev
+          - liblog4cplus-dev
+          - libtesseract-dev
+          - libopencv-dev
+          - build-essential
+          - cmake
+          - libleptonica-dev
+          - git
+
+    - name: Check if Tesseract is already built
+      stat:
+        path: /usr/include/tesseract
+      register: tesseract_installed
+      ignore_errors: true
+
+    - name: Download Tesseract source code
+      get_url:
+        url: https://github.com/tesseract-ocr/tesseract/archive/3.05.02.tar.gz
+        dest: /tmp/3.05.02.tar.gz
+      when: not tesseract_installed.stat.exists
+    - name: Extract Tesseract source code
+
+      ansible.builtin.unarchive:
+        src: /tmp/3.05.02.tar.gz
+        dest: /tmp/
+        remote_src: yes
+        creates: /tmp/tesseract-3.05.02/
+
+      when: not tesseract_installed.stat.exists
+    - name: Build and install Tesseract
+      shell: |
+        cd /tmp/tesseract-3.05.02/
+        ./autogen.sh
+        ./configure --enable-debug LDFLAGS="-L/usr/local/lib" CFLAGS="-I/usr/local/include"
+        make
+        sudo make install
+        sudo make install-langs
+        sudo ldconfig
+      args:
+        executable: /bin/bash
+      when: not tesseract_installed.stat.exists
+
+    - name: Clone OpenALPR repository
+      git:
+        repo: https://github.com/openalpr/openalpr.git
+        dest: /tmp/openalpr
+        version: master
+
+    - name: Create build directory
+      file:
+        path: /tmp/openalpr/src/build
+        state: directory
+
+    - name: Configure and build OpenALPR
+      shell: |
+        cd /tmp/openalpr/src/build
+        cmake -j2 -DCMAKE_INSTALL_PREFIX:PATH=/usr -DCMAKE_INSTALL_SYSCONFDIR:PATH=/etc ..
+        make
+        sudo make install
+      args:
+        executable: /bin/bash
+
+    - name: Create anpr-admin user
+      user:
+        name: anpr-admin
+        state: present
+        createhome: yes
+
+    - name: Configure SSH access
+      authorized_key:
+        user: anpr-admin
+        state: present
+        key: "{{ lookup('file', '~/.ssh/id_rsa.pub') }}"
+
+    - name: Set hostname
+      hostname:
+        name: anpr-client
